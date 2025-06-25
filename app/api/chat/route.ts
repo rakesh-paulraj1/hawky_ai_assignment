@@ -20,6 +20,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // If the message requests structured campaign content, use a system prompt
+    if (message.startsWith('Generate structured JSON for a marketing campaign page')) {
+      const systemPrompt = message;
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: systemPrompt,
+      });
+      // Try to parse the response as JSON
+      const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      return NextResponse.json({ text });
+    }
+
     // Get or create chat session
     let chat = chatSessions.get(sessionId);
     if (!chat) {
