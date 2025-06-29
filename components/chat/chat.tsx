@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { ChatMessage } from "./chat-message";
 import { useRouter } from 'next/navigation';
+import Image from "next/image";
 
 interface Message {
   content: string;
@@ -80,7 +81,9 @@ export function Chat() {
             message.type === 'image' ? (
               <div key={i} className="w-full flex flex-col items-start">
                 <div className="bg-gray-700 rounded-lg p-3 border border-gray-600">
-                  <img
+                  <Image
+                  width={0}
+                  height={0}
                     src={message.content}
                     alt={`Generated visual ${i + 1}`}
                     className="w-full max-w-[40%] max-h-96 object-contain rounded shadow-lg"

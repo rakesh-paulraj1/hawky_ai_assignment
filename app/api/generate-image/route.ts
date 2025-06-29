@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { GoogleGenAI, Modality } from '@google/genai';
 
+const CampaignSchema = z.object({
+  companyName: z.string(),
+  productName: z.string(),
+  catchyTitle: z.string(),
+  productDescription: z.string(),
+  keyFeatures: z.array(z.string()),
+  image: z.string()
+});
+
 const PromptSchema = z.object({
   prompt: z.string().min(5).max(1000)
 });
@@ -13,27 +22,24 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
-    const userPrompt = parsed.data.prompt;
-    
-    // Enhanced prompt for better marketing content
-    const prompt = `Generate 3 different high-quality marketing campaign images based on the following description. Each image should be unique and visually engaging.
 
-Description: ${userPrompt}
+    const prompt = `Generate 3 unique and visually appealing **marketing campaign images** based on the following product description: ${parsed.data.prompt}
 
-Additionally, provide marketing content for each image including:
-- A compelling headline
-- A brief product description
-- A call-to-action
-- Target audience
-- Key benefits
+For each campaign, provide:
+- Company Name: [name]
+- Product Name: [name] 
+- Catchy Title: [title]
+- Product Description: [description]
+- Key Features: [comma separated features]
+- Image
 
-Make the content professional, engaging, and suitable for marketing campaigns.`;
+Return only this data in the exact specified format. No additional text or explanations.`;
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'Missing Gemini API key' }, { status: 500 });
+      return NextResponse.json({ error: 'Missing API key' }, { status: 500 });
     }
-    
+
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash-preview-image-generation',
@@ -42,138 +48,111 @@ Make the content professional, engaging, and suitable for marketing campaigns.`;
         responseModalities: [Modality.TEXT, Modality.IMAGE],
       },
     });
-    
-    if (!response || !response.candidates || !response.candidates[0]?.content?.parts) {
-      return NextResponse.json({ error: 'Invalid Gemini response' }, { status: 500 });
-    }
-    
-    const images: string[] = [];
-    let text = '';
-    
-    for (const part of response.candidates[0].content.parts) {
-      if (part.text) {
-        text = part.text;
-      } else if (part.inlineData) {
-        const imageData = part.inlineData.data;
-        images.push(`data:image/png;base64,${imageData}`);
-      }
-    }
-   
-    if (!images.length) {
-      return NextResponse.json({ error: 'No images generated' }, { status: 500 });
+
+    if (!response?.candidates?.[0]?.content?.parts) {
+      return NextResponse.json({ error: 'Invalid API response' }, { status: 500 });
     }
 
-    // Parse and structure the marketing content
-    const marketingContent = parseMarketingContent(text, images.length);
-    
-    return NextResponse.json({ 
-      images: images.slice(0, 3), 
-      text,
-      marketingContent 
+// console.log(response?.candidates?.[0]?.content?.parts);
+const textParts: string[] = [];
+const images: string[] = [];
+
+    response.candidates[0].content.parts.forEach(part => {
+      if (part.text) {
+        textParts.push(part.text);
+      } else if (part.inlineData) {
+        images.push(`data:image/png;base64,${part.inlineData.data}`);
+      }
     });
-  } catch (e) {
-    console.log(e);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+
+    if (images.length < 3) {
+      return NextResponse.json({ error: 'Not enough images generated' }, { status: 500 });
+    }
+
+    const combinedText = textParts.join('\n');
+    const campaigns = parseCampaignContent(combinedText, images);
+
+    // Validate and pair campaigns with images
+    const validatedCampaigns = campaigns.map((campaign, index) => {
+      return {
+        ...campaign,
+        image: images[index] || ''
+      };
+    });
+
+    const result = z.array(CampaignSchema).parse(validatedCampaigns.slice(0, 3));
+
+    return NextResponse.json({
+      success: true,
+      images: images.slice(0, 3),
+      campaigns: result
+    });
+
+  } catch (error) {
+    console.error('Error:', error);
+    return NextResponse.json(
+      { error: 'Server error', details: String(error) },
+      { status: 500 }
+    );
   }
 }
 
-// Helper function to parse marketing content from Gemini's text response
-function parseMarketingContent(text: string, imageCount: number) {
-  try {
-    // Try to extract structured content from the text response
-    const lines = text.split('\n').filter(line => line.trim());
-    const content: Array<{
-      headline: string;
-      description: string;
-      callToAction: string;
-      targetAudience: string;
-      benefits: string[];
-    }> = [];
-    
-    let currentItem: {
-      headline: string;
-      description: string;
-      callToAction: string;
-      targetAudience: string;
-      benefits: string[];
-    } | null = null;
-    
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      
-      // Look for patterns that indicate new content items
-      if (trimmedLine.match(/^(Image|Campaign|Option)\s*\d+/i) || 
-          trimmedLine.match(/^[A-Z][^:]*:$/) ||
-          trimmedLine.includes('Headline:') ||
-          trimmedLine.includes('Description:')) {
-        
-        if (currentItem) {
-          content.push(currentItem);
-        }
-        
-        currentItem = {
-          headline: '',
-          description: '',
-          callToAction: '',
-          targetAudience: '',
-          benefits: []
-        };
-      }
-      
-      if (currentItem) {
-        if (trimmedLine.includes('Headline:') || trimmedLine.includes('Title:')) {
-          currentItem.headline = trimmedLine.split(':')[1]?.trim() || '';
-        } else if (trimmedLine.includes('Description:') || trimmedLine.includes('About:')) {
-          currentItem.description = trimmedLine.split(':')[1]?.trim() || '';
-        } else if (trimmedLine.includes('Call-to-action:') || trimmedLine.includes('CTA:')) {
-          currentItem.callToAction = trimmedLine.split(':')[1]?.trim() || '';
-        } else if (trimmedLine.includes('Target:') || trimmedLine.includes('Audience:')) {
-          currentItem.targetAudience = trimmedLine.split(':')[1]?.trim() || '';
-        } else if (trimmedLine.includes('Benefits:') || trimmedLine.includes('Features:')) {
-          // Extract benefits from the line
-          const benefitsText = trimmedLine.split(':')[1]?.trim() || '';
-          currentItem.benefits = benefitsText.split(',').map(b => b.trim()).filter(b => b);
-        }
-      }
+function parseCampaignContent(text: string, images: string[]) {
+  const campaigns: Array<{
+    companyName: string;
+    productName: string;
+    catchyTitle: string;
+    productDescription: string;
+    keyFeatures: string[];
+  }> = [];
+
+  // Split by campaign indicators
+  const campaignBlocks = text.split(/(?=Company Name:)/g);
+
+  campaignBlocks.forEach(block => {
+    const campaign: {
+      companyName: string;
+      productName: string;
+      catchyTitle: string;
+      productDescription: string;
+      keyFeatures: string[];
+    } = {
+      companyName: '',
+      productName: '',
+      catchyTitle: '',
+      productDescription: '',
+      keyFeatures: []
+    };
+
+    // Extract company name
+    const companyMatch = block.match(/Company Name:\s*(.+)/);
+    if (companyMatch) campaign.companyName = companyMatch[1].trim();
+
+    // Extract product name
+    const productMatch = block.match(/Product Name:\s*(.+)/);
+    if (productMatch) campaign.productName = productMatch[1].trim();
+
+    // Extract catchy title
+    const titleMatch = block.match(/Catchy Title:\s*(.+)/);
+    if (titleMatch) campaign.catchyTitle = titleMatch[1].trim();
+
+    // Extract product description
+    const descMatch = block.match(/Product Description:\s*(.+?)(?=\n\w|$)/s);
+    if (descMatch) campaign.productDescription = descMatch[1].trim();
+
+    // Extract key features
+    const featuresMatch = block.match(/Key Features:\s*(.+?)(?=\n\w|$)/s);
+    if (featuresMatch) {
+      campaign.keyFeatures = featuresMatch[1]
+        .split(',')
+        .map((f: string) => f.trim())
+        .filter((f: string) => f);
     }
-    
-    // Add the last item
-    if (currentItem) {
-      content.push(currentItem);
+
+    if (campaign.companyName) {
+      campaigns.push(campaign);
     }
-    
-    // If we couldn't parse structured content, create a generic one
-    if (content.length === 0) {
-      for (let i = 0; i < imageCount; i++) {
-        content.push({
-          headline: `Marketing Campaign ${i + 1}`,
-          description: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
-          callToAction: 'Learn More',
-          targetAudience: 'General Audience',
-          benefits: ['High Quality', 'Professional Design', 'Engaging Content']
-        });
-      }
-    }
-    
-    return content.slice(0, imageCount);
-  } catch {
-    // Fallback: create generic content
-    const fallbackContent: Array<{
-      headline: string;
-      description: string;
-      callToAction: string;
-      targetAudience: string;
-      benefits: string[];
-    }> = [];
-    for (let i = 0; i < imageCount; i++) {
-      fallbackContent.push({
-        headline: `Marketing Campaign ${i + 1}`,
-        description: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
-        callToAction: 'Learn More',
-        targetAudience: 'General Audience',
-        benefits: ['High Quality', 'Professional Design', 'Engaging Content']
-      });
-    }
-    return fallbackContent;
-  }
-} 
+  });
+
+  return campaigns.slice(0, images.length);
+}

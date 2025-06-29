@@ -75,7 +75,7 @@ export function Layout({ children, className }: LayoutProps) {
   };
 
   return (
-    <div className="min-h-screen flex bg-zinc-900">
+    <div className="flex bg-zinc-900">
       {/* Mobile overlay */}
       {sidebarOpen && isMobile && (
         <div 
@@ -85,13 +85,13 @@ export function Layout({ children, className }: LayoutProps) {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Fixed on desktop, overlay on mobile */}
       <div 
         className={cn(
           "sidebar",
           isMobile 
-            ? "fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out"
-            : "relative",
+            ? "fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out h-screen"
+            : "fixed inset-y-0 left-0 z-30 h-screen",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
           !isMobile && "translate-x-0"
         )}
@@ -108,8 +108,12 @@ export function Layout({ children, className }: LayoutProps) {
         />
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col bg-zinc-900 min-w-0">
+      {/* Main content - Add left margin to account for fixed sidebar */}
+      <div className={cn(
+        "flex-1 flex flex-col bg-zinc-900 min-w-0 transition-all duration-300 h-screen overflow-y-auto",
+        !isMobile && !sidebarCollapsed && "ml-64",
+        !isMobile && sidebarCollapsed && "ml-16"
+      )}>
         {/* Header with toggle button */}
         <header className="bg-zinc-800 border-b border-zinc-700 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-2">

@@ -3,13 +3,11 @@ import { Layout } from '@/components/layout';
 import { useRouter } from 'next/navigation';
 import { useState,useEffect,useRef } from 'react';
 import { ChatMessage } from '@/components/chat/chat-message';
-
-interface MarketingContent {
-  headline: string;
-  description: string;
-  callToAction: string;
-  targetAudience: string;
-  benefits: string[];
+import Image from 'next/image';
+interface Campaign {
+  catchyTitle: string;
+  productDescription: string;
+  keyFeatures: string[];
 }
 
 interface Message {
@@ -17,7 +15,7 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   type?: 'text' | 'image';
-  marketingContent?: MarketingContent;
+  campaign?: Campaign;
 }
 
 export default function ChatPage() {
@@ -60,8 +58,8 @@ export default function ChatPage() {
       if (!res.ok) throw new Error('Failed to generate image');
       const data = await res.json();
       const images = data.images.slice(0, 3);
-      const marketingContent = data.marketingContent || [];
-      
+      const campaigns = data.campaigns || [];
+      console.log(res);
       setMessages((prev) => [
         ...prev,
         ...images.map((img: string, index: number) => ({
@@ -69,12 +67,10 @@ export default function ChatPage() {
           isUser: false,
           timestamp: new Date(),
           type: 'image',
-          marketingContent: marketingContent[index] || {
-            headline: `Marketing Campaign ${index + 1}`,
-            description: 'Professional marketing content',
-            callToAction: 'Learn More',
-            targetAudience: 'General Audience',
-            benefits: ['High Quality', 'Professional Design']
+          campaign: campaigns[index] || {
+            catchyTitle: `Amazing Campaign ${index + 1}`,
+            productDescription: 'Professional marketing campaign with compelling content.',
+            keyFeatures: ['High Quality', 'Professional Design', 'Engaging Content']
           }
         })),
       ]);
@@ -85,36 +81,30 @@ export default function ChatPage() {
     }
   };
 
-  const handleUseInCampaign = (img: string, marketingContent?: MarketingContent) => {
-    // Store image data in sessionStorage to avoid URL length issues
+  const handleUseInCampaign = (img: string, campaign?: Campaign) => {
     const campaignData = {
       image: img,
       prompt: lastPrompt,
-      marketingContent: marketingContent || null,
+      campaign: campaign || null,
       timestamp: new Date().toISOString()
     };
-    
     sessionStorage.setItem('campaignData', JSON.stringify(campaignData));
-    
-    // Navigate to campaign page with a simple identifier
     router.push('/campaign');
   };
   
   return (
     <Layout>
       <div className="flex flex-col h-full bg-zinc-900">
-        {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="max-w-4xl mx-auto space-y-4">
             {messages.length === 0 ? (
-              // Welcome message when no messages
               <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center">
                 <div className="max-w-2xl mx-auto space-y-6">
                   <div className="space-y-4">
                     <h1 className="text-3xl lg:text-4xl font-bold text-white">
                       Welcome to Marketing Assistant
                     </h1>
-                    <p className="text-xl text-zinc-300">
+              <p className="text-xl text-zinc-300">
                       AI-Powered Image Generation for Marketing Campaigns
                     </p>
                   </div>
@@ -137,8 +127,8 @@ export default function ChatPage() {
                           2
                         </div>
                         <div>
-                          <h3 className="font-medium text-white">AI Generates Images & Content</h3>
-                          <p className="text-zinc-400 text-sm">Our AI creates multiple high-quality marketing images with complete campaign content</p>
+                          <h3 className="font-medium text-white">AI Generates Campaigns</h3>
+                          <p className="text-zinc-400 text-sm">Our AI creates multiple marketing campaigns with images, titles, and features</p>
                         </div>
                       </div>
                       
@@ -147,8 +137,8 @@ export default function ChatPage() {
                           3
                         </div>
                         <div>
-                          <h3 className="font-medium text-white">Use in Campaigns</h3>
-                          <p className="text-zinc-400 text-sm">Select any image to create a complete marketing campaign with AI-generated content</p>
+                          <h3 className="font-medium text-white">Choose Your Campaign</h3>
+                          <p className="text-zinc-400 text-sm">Select any campaign to create a complete marketing landing page</p>
                         </div>
                       </div>
                     </div>
@@ -162,40 +152,36 @@ export default function ChatPage() {
                 message.type === 'image' ? (
                   <div key={i} className="w-full flex flex-col items-start">
                     <div className="bg-zinc-700 rounded-lg p-4 border border-zinc-600 w-full max-w-2xl">
-                      <img src={message.content} alt="Generated" className="w-full rounded mb-4" />
+                      <Image src={message.content} alt="Generated" className="w-full rounded mb-4" />
                       
-                      {/* Marketing Content */}
-                      {message.marketingContent && (
+                      {/* Campaign Content */}
+                      {message.campaign && (
                         <div className="space-y-3 mb-4">
-                          <h3 className="text-lg font-semibold text-white">
-                            {message.marketingContent.headline}
+                          <h3 className="text-xl font-semibold text-white">
+                            {message.campaign.catchyTitle}
                           </h3>
-                          <p className="text-zinc-300 text-sm">
-                            {message.marketingContent.description}
+                          <p className="text-zinc-300 text-sm leading-relaxed">
+                            {message.campaign.productDescription}
                           </p>
                           
                           <div className="flex flex-wrap gap-2">
-                            {message.marketingContent.benefits.map((benefit, index) => (
+                            {message.campaign.keyFeatures.map((feature, index) => (
                               <span 
                                 key={index}
                                 className="bg-zinc-600 text-zinc-200 px-2 py-1 rounded text-xs"
                               >
-                                {benefit}
+                                {feature}
                               </span>
                             ))}
-                          </div>
-                          
-                          <div className="text-xs text-zinc-400">
-                            Target: {message.marketingContent.targetAudience}
                           </div>
                         </div>
                       )}
                       
                       <button
                         className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors duration-200 text-sm font-medium"
-                        onClick={() => handleUseInCampaign(message.content, message.marketingContent)}
+                        onClick={() => handleUseInCampaign(message.content, message.campaign)}
                       >
-                        Use in Campaign
+                        Use This Campaign
                       </button>
                     </div>
                   </div>
@@ -236,7 +222,7 @@ export default function ChatPage() {
                 className="bg-zinc-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-zinc-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 focus:ring-offset-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!input.trim() || isGeneratingImage}
               >
-                {isGeneratingImage ? 'Generating...' : 'Generate Images'}
+                {isGeneratingImage ? 'Generating...' : 'Generate Campaigns'}
               </button>
             </form>
             {imageError && (

@@ -7,14 +7,9 @@ interface ChatMessageProps {
   timestamp: Date;
 }
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "numeric",
-    hour12: true,
-  }).format(date);
-} 
-export function ChatMessage({ message, isUser, timestamp }: ChatMessageProps) {
+
+
+export function ChatMessage({ message, isUser,  }: ChatMessageProps) {
   return (
     <div
       className={cn(
@@ -35,7 +30,7 @@ export function ChatMessage({ message, isUser, timestamp }: ChatMessageProps) {
           "text-xs",
           isUser ? "text-blue-100" : "text-gray-400"
         )}>
-          {formatDate(timestamp)}
+        
         </span>
       </div>
     </div>
